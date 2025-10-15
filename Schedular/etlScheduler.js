@@ -22,19 +22,19 @@ async function sendAlert(message) {
     await transporter.sendMail({
       from: process.env.ALERT_EMAIL_USER,
       to: process.env.ALERT_EMAIL_RECIPIENT || process.env.ALERT_EMAIL_USER,
-      subject: '⚠️ ETL Pipeline Failure Alert',
+      subject: ' ETL Pipeline Failure Alert',
       text: message,
     });
-    console.log('📨 Alert email sent successfully.');
+    console.log(' Alert email sent successfully.');
   } catch (err) {
-    console.error('❌ Failed to send alert email:', err.message);
+    console.error(' Failed to send alert email:', err.message);
   }
 }
 
-// 🧠 Executes ETL safely & logs run details with checkpoint awareness
+//  Executes ETL safely & logs run details with checkpoint awareness
 async function executeETLJob() {
   if (isRunning) {
-    console.log('⚠️ Previous ETL still running — skipping this run.');
+    console.log(' Previous ETL still running — skipping this run.');
     return;
   }
 
@@ -86,7 +86,7 @@ async function executeETLJob() {
 }
 
 //  Schedule ETL every 3 minutes (for testing)
-cron.schedule('0 * * * *', async () => {
+cron.schedule('0 0 * * *', async () => {
   await executeETLJob();
 });
 console.log(' ETL Scheduler initialized — will run every 3 minutes.');
