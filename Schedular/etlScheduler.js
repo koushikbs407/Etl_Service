@@ -40,7 +40,7 @@ async function executeETLJob() {
 
   const startTime = new Date();
   isRunning = true;
-  console.log(`🕒 Starting scheduled ETL job at ${startTime.toISOString()}...`);
+  console.log(` Starting scheduled ETL job at ${startTime.toISOString()}...`);
 
   let rowsProcessed = 0;
   let errors = 0;
@@ -63,7 +63,7 @@ async function executeETLJob() {
     // We avoid writing again with Mongoose here because the ETL runner
     // closes the DB/mongoose connection before returning.
     failureCount = 0;
-    console.log(`✅ ETL job completed successfully at ${endTime.toISOString()}.`);
+    console.log(` ETL job completed successfully at ${endTime.toISOString()}.`);
 
   } catch (error) {
     const endTime = new Date();
@@ -72,11 +72,11 @@ async function executeETLJob() {
     // Orchestration already logs failed ETL runs; here we only track failures
     // for alerting and local diagnostics.
     failureCount += 1;
-    console.error(`❌ ETL job failed (${failureCount} consecutive failures):`, error.message);
+    console.error(` ETL job failed (${failureCount} consecutive failures):`, error.message);
 
     if (failureCount >= 3) {
       await sendAlert(
-        `⚠️ ETL Pipeline failed 3 times consecutively!\nTime: ${new Date().toISOString()}\nCheck logs immediately.`
+        ` ETL Pipeline failed 3 times consecutively!\nTime: ${new Date().toISOString()}\nCheck logs immediately.`
       );
       failureCount = 0;
     }
@@ -85,12 +85,11 @@ async function executeETLJob() {
   }
 }
 
-// 🕐 Schedule ETL every 3 minutes (for testing)
-cron.schedule('*/3 * * * *', async () => {
+//  Schedule ETL every 3 minutes (for testing)
+cron.schedule('0 * * * *', async () => {
   await executeETLJob();
 });
-
-console.log('⏰ ETL Scheduler initialized — will run every 3 minutes.');
+console.log(' ETL Scheduler initialized — will run every 3 minutes.');
 
 // 🔹 Optional: Run immediately on startup
 executeETLJob();
