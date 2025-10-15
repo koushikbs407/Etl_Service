@@ -80,7 +80,7 @@ page	Page number for pagination
 limit	Number of results per page
 
 🏗️ Architecture
-<img src="assets/Etl-service-architecture.png" alt="Kasparro ETL Architecture" width="700">
+<img src="Etl-service-architecture.png" alt="Kasparro ETL Architecture" width="700">
 
 
 The system consists of two main services managed via Docker Compose:
