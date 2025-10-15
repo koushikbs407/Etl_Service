@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/etl_db
+      - PORT=3000
+      - NODE_ENV=production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./Service/Historical_Data.csv:/app/Service/Historical_Data.csv
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "Schedular/etlScheduler.js"]
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/etl_db
+      - NODE_ENV=production
+      - ALERT_EMAIL_USER=${ALERT_EMAIL_USER:-}
+      - ALERT_EMAIL_PASS=${ALERT_EMAIL_PASS:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - api
+
+volumes:
+  mongodb_data:
