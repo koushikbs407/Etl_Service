@@ -53,8 +53,8 @@ let mongoDb;
 
 const connectMongoDB = async () => {
   try {
-    console.log('🔗 Connecting to MongoDB Atlas...');
-    console.log('📍 URI:', config.mongodb.uri.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in log
+    console.log(' Connecting to MongoDB Atlas...');
+    console.log(' URI:', config.mongodb.uri.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in log
     
     // MongoDB Atlas connection
     mongoClient = new MongoClient(config.mongodb.uri, {
@@ -65,12 +65,12 @@ const connectMongoDB = async () => {
     
     await mongoClient.connect();
     mongoDb = mongoClient.db(config.mongodb.database);
-    console.log('✅ Connected to MongoDB Atlas');
+    console.log(' Connected to MongoDB Atlas');
 
     // Create collections and indexes
     await createCollections();
   } catch (error) {
-    console.error('❌ MongoDB Atlas connection error:', error);
+    console.error(' MongoDB Atlas connection error:', error);
     throw error;
   }
 };
@@ -140,7 +140,7 @@ const createCollections = async () => {
 
     await mongoDb.collection('etl_summaries').createIndex({ timestamp: -1 });
 
-    console.log('✅ MongoDB collections and indexes created successfully');
+    console.log(' MongoDB collections and indexes created successfully');
   } catch (error) {
     console.error('Error creating MongoDB collections:', error);
     throw error;
@@ -150,7 +150,7 @@ const createCollections = async () => {
 // Data Source A: CoinPaprika API
 const fetchCoinPaprikaData = async () => {
   try {
-    console.log('📡 Fetching data from CoinPaprika API...');
+    console.log(' Fetching data from CoinPaprika API...');
     const response = await axios.get(config.apis.coinpaprika);
     
     return response.data.slice(0, 10).map(coin => {
@@ -169,7 +169,7 @@ const fetchCoinPaprikaData = async () => {
       return normalizedData;
     });
   } catch (error) {
-    console.error('❌ Error fetching CoinPaprika data:', error.message);
+    console.error(' Error fetching CoinPaprika data:', error.message);
     return [];
   }
 };
@@ -197,7 +197,7 @@ const fetchCSVData = async () => {
 
         // Log the mapping for debugging
         if (mappingLog.length > 0) {
-          console.log('🔄 CSV mapping:', mappingLog);
+          console.log(' CSV mapping:', mappingLog);
         }
 
        
@@ -219,7 +219,7 @@ const fetchCSVData = async () => {
         results.push(normalizedData);
       })
       .on('end', () => {
-        console.log(`📄 Loaded ${results.length} records from CSV`);
+        console.log(` Loaded ${results.length} records from CSV`);
         resolve(results);
       })
       .on('error', (error) => {
@@ -232,7 +232,7 @@ const fetchCSVData = async () => {
 // Data Source C: CoinGecko API
 const fetchCoinGeckoData = async () => {
   try {
-    console.log('📡 Fetching data from CoinGecko API...');
+    console.log(' Fetching data from CoinGecko API...');
     const response = await axios.get(`${config.apis.coingecko}?vs_currency=usd&order=market_cap_desc&per_page=20&page=1`);
     
     return response.data.map(coin => {
@@ -251,7 +251,7 @@ const fetchCoinGeckoData = async () => {
       return normalizedData;
     });
   } catch (error) {
-    console.error('❌ Error fetching CoinGecko data:', error.message);
+    console.error(' Error fetching CoinGecko data:', error.message);
     return [];
   }
 };
@@ -280,14 +280,14 @@ const validateAndStoreData = async (data) => {
     const { error, value } = unifiedSchema.validate(record);
     
     if (error) {
-      console.warn(`⚠️  Validation error for ${record.symbol}:`, error.details[0].message);
+      console.warn(`  Validation error for ${record.symbol}:`, error.details[0].message);
       invalidRecords.push({ record, error: error.details[0].message });
     } else {
       validRecords.push(value);
     }
   }
 
-  console.log(`📊 Valid records: ${validRecords.length}, Invalid records: ${invalidRecords.length}`);
+  console.log(` Valid records: ${validRecords.length}, Invalid records: ${invalidRecords.length}`);
   
   // Store valid records
   for (const record of validRecords) {
@@ -300,7 +300,7 @@ const validateAndStoreData = async (data) => {
       );
 
       if (alreadyProcessed) {
-        console.log(`⏭️  Skipping already processed record: ${record.symbol} from ${record.source}`);
+        console.log(` Skipping already processed record: ${record.symbol} from ${record.source}`);
         continue;
       }
 
@@ -327,7 +327,7 @@ const validateAndStoreData = async (data) => {
       };
 
       // Print before storing raw data
-      console.log(`📝 About to store RAW data for ${record.symbol} from ${record.source}:`, {
+      console.log(` About to store RAW data for ${record.symbol} from ${record.source}:`, {
         symbol: record.symbol,
         price_usd: record.price_usd,
         volume_24h: record.volume_24h,
@@ -339,7 +339,7 @@ const validateAndStoreData = async (data) => {
       await mongoDb.collection('raw_crypto_data').insertOne(rawDocument);
 
       // Print before storing normalized data
-      console.log(`📝 About to store NORMALIZED data for ${record.symbol} from ${record.source}:`, {
+      console.log(` About to store NORMALIZED data for ${record.symbol} from ${record.source}:`, {
         symbol: record.symbol,
         name: record.name,
         price_usd: record.price_usd,
@@ -353,14 +353,14 @@ const validateAndStoreData = async (data) => {
       // Store normalized data
       await mongoDb.collection('normalized_crypto_data').insertOne(normalizedDocument);
 
-      console.log(`✅ Successfully stored: ${record.symbol} from ${record.source}`);
+      console.log(` Successfully stored: ${record.symbol} from ${record.source}`);
 
     } catch (error) {
       if (error.code === 11000) {
         // Duplicate key error - record already exists
-        console.log(`⏭️  Duplicate record skipped: ${record.symbol} from ${record.source}`);
+        console.log(`  Duplicate record skipped: ${record.symbol} from ${record.source}`);
       } else {
-        console.error(`❌ Error storing record for ${record.symbol}:`, error.message);
+        console.error(` Error storing record for ${record.symbol}:`, error.message);
       }
     }
   }
@@ -371,13 +371,13 @@ const validateAndStoreData = async (data) => {
 // Main ETL Orchestrator
 const runETLPipeline = async () => {
   try {
-    console.log('🚀 Starting ETL Pipeline with MongoDB Atlas...\n');
+    console.log(' Starting ETL Pipeline with MongoDB Atlas...\n');
     
     // Connect to MongoDB Atlas
     await connectMongoDB();
 
     // Fetch data from all sources
-    console.log('📡 Fetching data from all sources...');
+    console.log(' Fetching data from all sources...');
     let [coinpaprikaData, csvData, coingeckoData] = await Promise.all([
       fetchCoinPaprikaData(),
       fetchCSVData(),
@@ -389,7 +389,7 @@ const runETLPipeline = async () => {
 
     // Combine all data
     const allData = [...coinpaprikaData, ...csvData, ...coingeckoData];
-    console.log(`📊 Total records fetched: ${allData.length}`);
+    console.log(` Total records fetched: ${allData.length}`);
 
     // Validate and store data
     const { validRecords, invalidRecords } = await validateAndStoreData(allData);
@@ -408,7 +408,7 @@ const runETLPipeline = async () => {
       database: 'mongodb_atlas'
     };
 
-    console.log('\n📈 ETL Pipeline Summary:');
+    console.log('\n ETL Pipeline Summary:');
     console.log(JSON.stringify(summary, null, 2));
 
     // Store summary in MongoDB
@@ -417,13 +417,13 @@ const runETLPipeline = async () => {
     return summary;
 
   } catch (error) {
-    console.error('💥 ETL Pipeline Error:', error);
+    console.error(' ETL Pipeline Error:', error);
     throw error;
   } finally {
     // Close MongoDB connection
     if (mongoClient) {
       await mongoClient.close();
-      console.log('🔌 MongoDB Atlas connection closed');
+      console.log(' MongoDB Atlas connection closed');
     }
   }
 };
@@ -432,11 +432,11 @@ const runETLPipeline = async () => {
 if (require.main === module) {
   runETLPipeline()
     .then(summary => {
-      console.log('\n🎉 ETL Pipeline completed successfully!');
+      console.log('\n ETL Pipeline completed successfully!');
       process.exit(0);
     })
     .catch(error => {
-      console.error('\n💥 ETL Pipeline failed:', error);
+      console.error('\n ETL Pipeline failed:', error);
       process.exit(1);
     });
 }

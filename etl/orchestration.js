@@ -95,7 +95,7 @@ async function processSourceWithCheckpoint(source, data) {
         }
 
       } catch (err) {
-        console.error(`❌ Failed to insert ${record.symbol}:`, err.message);
+        console.error(` Failed to insert ${record.symbol}:`, err.message);
         failedIds.push(record.symbol);
       }
     }
@@ -193,7 +193,7 @@ const runETLPipeline = async () => {
       totalLatency
     });
 
-    console.log('📈 ETL Pipeline Summary:', summary);
+    console.log(' ETL Pipeline Summary:', summary);
     return summary;
 
   } catch (error) {
@@ -209,7 +209,7 @@ const runETLPipeline = async () => {
       totalLatency
     });
 
-    console.error('💥 ETL Pipeline Error:', error.message);
+    console.error(' ETL Pipeline Error:', error.message);
     throw error;
 
   } finally {
@@ -221,21 +221,21 @@ const runETLPipeline = async () => {
 // Run ETL if this file is executed directly
 if (require.main === module) {
   runETLPipeline()
-    .then(() => console.log('🎉 ETL Completed'))
-    .catch(err => console.error('💥 ETL Failed:', err));
+    .then(() => console.log(' ETL Completed'))
+    .catch(err => console.error(' ETL Failed:', err));
 }
 
 module.exports = { runETLPipeline };
 
 // Handle graceful shutdowns: close mongoose when process exits
 process.on('SIGINT', async () => {
-  console.log('\n🛑 SIGINT received — shutting down gracefully...');
+  console.log('\n SIGINT received — shutting down gracefully...');
   await closeMongoDB();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('\n🛑 SIGTERM received — shutting down gracefully...');
+  console.log('\n SIGTERM received — shutting down gracefully...');
   await closeMongoDB();
   process.exit(0);
 });

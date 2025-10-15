@@ -85,8 +85,8 @@ async function executeETLJob() {
   }
 }
 
-//  Schedule ETL every 3 minutes (for testing)
-cron.schedule('0 0 * * *', async () => {
+//  Schedule ETL every 1 minutes (for testing)
+cron.schedule('0 * * * *', async () => {
   await executeETLJob();
 });
 console.log(' ETL Scheduler initialized — will run every 3 minutes.');

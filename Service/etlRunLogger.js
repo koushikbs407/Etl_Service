@@ -37,10 +37,10 @@ async function logETLRun({
     try {
   // Insert into the collection that matches the Mongoose model name 'EtlRun'
   await mongoDb.collection('etlruns').insertOne(record);
-  console.log(`🧾 ETL Run Logged (native -> etlruns): ${runId}`);
+  console.log(` ETL Run Logged (native -> etlruns): ${runId}`);
       return;
     } catch (err) {
-      console.warn('⚠️ Failed to write etl run via native driver:', err.message);
+      console.warn(' Failed to write etl run via native driver:', err.message);
       // fallthrough to mongoose fallback
     }
   }
@@ -48,12 +48,12 @@ async function logETLRun({
   if (EtlRunModel) {
     // Fallback to mongoose model if available
     await EtlRunModel.create(record);
-    console.log(`🧾 ETL Run Logged (mongoose): ${runId}`);
+    console.log(` ETL Run Logged (mongoose): ${runId}`);
     return;
   }
 
   // If neither is available, just log to console
-  console.log('🧾 ETL Run (no DB):', JSON.stringify(record));
+  console.log(' ETL Run (no DB):', JSON.stringify(record));
 }
 
 module.exports = { logETLRun };

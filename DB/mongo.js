@@ -13,7 +13,7 @@ const connectMongoDB = async () => {
     });
     await mongoClient.connect();
     mongoDb = mongoClient.db(config.mongodb.database);
-    console.log('✅ Connected to MongoDB Atlas');
+    console.log(' Connected to MongoDB Atlas');
 
     // If mongoose is available, connect it too so mongoose models work immediately
     try {
@@ -23,15 +23,15 @@ const connectMongoDB = async () => {
       // Avoid double-connecting if mongoose already connected
       if (mongoose.connection.readyState === 0) {
         await mongoose.connect(config.mongodb.uri, { dbName: config.mongodb.database });
-        console.log('✅ Mongoose connected');
+        console.log(' Mongoose connected');
       }
     } catch (e) {
       // mongoose not installed or failed to connect — skip but log
-      console.warn('⚠️ Mongoose not initialized (optional):', e.message);
+      console.warn(' Mongoose not initialized (optional):', e.message);
     }
     return mongoDb;
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    console.error(' MongoDB connection error:', error);
     throw error;
   }
 };

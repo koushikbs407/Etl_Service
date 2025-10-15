@@ -13,7 +13,7 @@ const fetchCSVData = async () => {
 
     readStream
       .on('error', (err) => {
-        console.error('❌ Error opening CSV file at', csvPath, err);
+        console.error(' Error opening CSV file at', csvPath, err);
         reject(err);
       })
       .pipe(csv())
@@ -22,7 +22,7 @@ const fetchCSVData = async () => {
           const { mappedRow, mappingLog } = mapCsvRowToUnifiedSchema(data);
 
           if (mappingLog.length > 0) {
-            console.log('🔄 CSV mapping:', mappingLog);
+            console.log(' CSV mapping:', mappingLog);
           }
 
           const normalizedData = {
@@ -40,15 +40,15 @@ const fetchCSVData = async () => {
           results.push(normalizedData);
 
         } catch (err) {
-          console.error('⚠️ Failed to process CSV row:', data, err.message);
+          console.error(' Failed to process CSV row:', data, err.message);
         }
       })
       .on('end', () => {
-        console.log(`📄 Loaded ${results.length} records from CSV`);
+        console.log(` Loaded ${results.length} records from CSV`);
         resolve(results);
       })
       .on('error', (error) => {
-        console.error('❌ Error parsing CSV file:', error);
+        console.error(' Error parsing CSV file:', error);
         reject(error);
       });
   });
