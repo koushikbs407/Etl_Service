@@ -33,6 +33,35 @@ const httpRequestErrors = new promClient.Counter({
 });
 register.registerMetric(httpRequestErrors);
 
+// ETL metrics
+const etlLatencySeconds = new promClient.Histogram({
+  name: 'etl_latency_seconds',
+  help: 'ETL job execution time in seconds',
+  buckets: [1, 5, 10, 30, 60, 120, 300],
+});
+register.registerMetric(etlLatencySeconds);
+
+const etlRowsProcessedTotal = new promClient.Counter({
+  name: 'etl_rows_processed_total',
+  help: 'Total number of rows processed by ETL jobs',
+});
+register.registerMetric(etlRowsProcessedTotal);
+
+// Rate limiting metrics
+const throttleEventsTotal = new promClient.Counter({
+  name: 'throttle_events_total',
+  help: 'Total number of throttling events',
+  labelNames: ['source']
+});
+register.registerMetric(throttleEventsTotal);
+
+const quotaRequestsPerMinute = new promClient.Gauge({
+  name: 'quota_requests_per_minute',
+  help: 'Configured request quota per source',
+  labelNames: ['source']
+});
+register.registerMetric(quotaRequestsPerMinute);
+
 // Middleware: request_id and timing
 app.use((req, res, next) => {
   const start = Date.now();
@@ -67,6 +96,84 @@ async function getLastRunSummary() {
     latencyMs: r.total_latency_ms || 0
   };
 }
+
+/**
+ * @swagger
+ * /refresh:
+ *   post:
+ *     summary: Trigger requests to both API sources
+ *     description: Makes rate-limited requests to both coinpaprika and coingecko sources
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successful operation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 sources:
+ *                   type: object
+ */
+app.post('/refresh', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  
+  // Token validation
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    // In a real app, you would validate the token here
+  }
+  
+  try {
+    const { rateLimitedRequest, throttlingMetrics } = require('../Utility/rateLimiter');
+    
+    const results = {
+      timestamp: new Date().toISOString(),
+      sources: {}
+    };
+    
+    // Make requests to both sources
+    const url = 'https://example.com/';
+    
+    // Request to Source A (coinpaprika)
+    try {
+      await rateLimitedRequest('coinpaprika', url);
+      results.sources.coinpaprika = {
+        status: 'success',
+        metrics: throttlingMetrics.coinpaprika
+      };
+    } catch (error) {
+      results.sources.coinpaprika = {
+        status: 'error',
+        error: error.message,
+        metrics: throttlingMetrics.coinpaprika
+      };
+    }
+    
+    // Request to Source C (coingecko)
+    try {
+      await rateLimitedRequest('coingecko', url);
+      results.sources.coingecko = {
+        status: 'success',
+        metrics: throttlingMetrics.coingecko
+      };
+    } catch (error) {
+      results.sources.coingecko = {
+        status: 'error',
+        error: error.message,
+        metrics: throttlingMetrics.coingecko
+      };
+    }
+    
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /**
  * @swagger

@@ -9,6 +9,7 @@ const { saveCheckpoint, getCheckpoint } = require('../Schedular/etlCheckpointSer
 const EtlSummary = require('../Schems/EtlSummary');
 const { throttlingMetrics } = require('../Utility/rateLimiter');
 const unifiedSchema = require('../Schems/unifiedSchema');
+const promClient = require('prom-client');
 
 const config = require('../Config/config');
 
@@ -114,6 +115,15 @@ const runETLPipeline = async () => {
   let totalErrors = 0;
   let totalValidationErrors = 0;
   let skippedFields = [];
+  
+  // Get Prometheus metrics
+  let etlLatencyMetric, etlRowsProcessedMetric;
+  try {
+    etlLatencyMetric = promClient.register.getSingleMetric('etl_latency_seconds');
+    etlRowsProcessedMetric = promClient.register.getSingleMetric('etl_rows_processed_total');
+  } catch (err) {
+    // Ignore if metrics not registered yet
+  }
 
   try {
     await connectMongoDB();
@@ -182,6 +192,15 @@ const runETLPipeline = async () => {
     await generateAndStoreETLSummary(summary);
 
     const totalLatency = new Date() - startTime;
+    
+    // Update Prometheus metrics
+    if (etlLatencyMetric) {
+      etlLatencyMetric.observe(totalLatency / 1000); // Convert ms to seconds
+    }
+    
+    if (etlRowsProcessedMetric) {
+      etlRowsProcessedMetric.inc(totalRowsProcessed);
+    }
 
     // Log successful ETL run
     await logETLRun({
