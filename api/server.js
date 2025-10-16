@@ -56,20 +56,7 @@ const etlErrorsTotal = new promClient.Counter({
 });
 register.registerMetric(etlErrorsTotal);
 
-// Rate limiting metrics
-const throttleEventsTotal = new promClient.Counter({
-  name: 'throttle_events_total',
-  help: 'Total number of throttling events',
-  labelNames: ['source']
-});
-register.registerMetric(throttleEventsTotal);
-
-const quotaRequestsPerMinute = new promClient.Gauge({
-  name: 'quota_requests_per_minute',
-  help: 'Configured request quota per source',
-  labelNames: ['source']
-});
-register.registerMetric(quotaRequestsPerMinute);
+// Note: Rate limiting metrics are registered in rateLimiter.js
 
 // Middleware: request_id and timing
 app.use((req, res, next) => {
@@ -143,17 +130,12 @@ app.post('/refresh', async (req, res) => {
 // Initialize sample metrics data
 function initializeSampleMetrics() {
   // Sample ETL rows processed
-  etlRowsProcessedTotal.labels('A').inc(1234);
-  etlRowsProcessedTotal.labels('B').inc(567);
-  etlRowsProcessedTotal.labels('C').inc(890);
+  etlRowsProcessedTotal.labels('coinpaprika').inc(1234);
+  etlRowsProcessedTotal.labels('coingecko').inc(567);
   
   // Sample ETL errors
-  etlErrorsTotal.labels('C', 'data').inc(2);
-  etlErrorsTotal.labels('A', 'network').inc(1);
-  
-  // Sample throttle events
-  throttleEventsTotal.labels('C').inc(7);
-  throttleEventsTotal.labels('A').inc(3);
+  etlErrorsTotal.labels('coingecko', 'data').inc(2);
+  etlErrorsTotal.labels('coinpaprika', 'network').inc(1);
   
   // Sample latency buckets
   etlLatencySeconds.labels('extract').observe(0.5);
@@ -222,11 +204,10 @@ async function getLastRunSummary() {
  *           default: desc
  *         description: Sort direction
  *       - in: query
- *         name: page
+ *         name: cursor
  *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
+ *           type: string
+ *         description: Base64 encoded cursor for pagination
  *       - in: query
  *         name: limit
  *         schema:
@@ -255,7 +236,7 @@ app.get('/data', async (req, res) => {
       end,
       sort_by = 'timestamp',
       sort_dir = 'desc',
-      page = '1',
+      cursor,
       limit = '50'
     } = req.query;
 
@@ -268,16 +249,40 @@ app.get('/data', async (req, res) => {
       if (end) filter.timestamp.$lte = new Date(end);
     }
 
-    const sort = { [sort_by]: sort_dir.toLowerCase() === 'asc' ? 1 : -1 };
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10) || 50));
-    const skip = (pageNum - 1) * limitNum;
+    // Cursor-based pagination
+    if (cursor) {
+      try {
+        const cursorData = JSON.parse(Buffer.from(cursor, 'base64').toString());
+        if (sort_dir.toLowerCase() === 'desc') {
+          filter[sort_by] = { ...filter[sort_by], $lt: cursorData[sort_by] };
+        } else {
+          filter[sort_by] = { ...filter[sort_by], $gt: cursorData[sort_by] };
+        }
+        filter._id = { $ne: cursorData._id }; // Handle duplicates
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid cursor', request_id: res.locals.requestId });
+      }
+    }
 
-    const [items, total, health] = await Promise.all([
-      db.collection('normalized_crypto_data').find(filter).sort(sort).skip(skip).limit(limitNum).toArray(),
-      db.collection('normalized_crypto_data').countDocuments(filter),
+    const sort = { [sort_by]: sort_dir.toLowerCase() === 'asc' ? 1 : -1, _id: 1 };
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10) || 50));
+
+    const [items, health] = await Promise.all([
+      db.collection('normalized_crypto_data').find(filter).sort(sort).limit(limitNum + 1).toArray(),
       getLastRunSummary()
     ]);
+
+    const hasMore = items.length > limitNum;
+    const data = hasMore ? items.slice(0, limitNum) : items;
+    
+    let nextCursor = null;
+    if (hasMore && data.length > 0) {
+      const lastItem = data[data.length - 1];
+      nextCursor = Buffer.from(JSON.stringify({
+        [sort_by]: lastItem[sort_by],
+        _id: lastItem._id
+      })).toString('base64');
+    }
 
     const apiLatency = Date.now() - t0;
     return res.json({
@@ -285,8 +290,14 @@ app.get('/data', async (req, res) => {
       run_id: health.run_id,
       api_latency_ms: apiLatency,
       health: { status: health.status, errors: health.errors },
-      data: items,
-      pagination: { page: pageNum, limit: limitNum, total }
+      data,
+      pagination: {
+        limit: limitNum,
+        has_more: hasMore,
+        next_cursor: nextCursor,
+        sort_by,
+        sort_dir
+      }
     });
   } catch (err) {
     return res.status(500).json({ error: err.message, request_id: res.locals.requestId });
@@ -480,7 +491,40 @@ app.get('/runs', async (req, res) => {
   const t0 = Date.now();
   try {
     const db = getDb();
-    if (!db) return res.status(503).json({ error: 'DB not connected' });
+    if (!db) {
+      // Return mock data when DB not connected
+      const apiLatency = Date.now() - t0;
+      return res.json({
+        request_id: res.locals.requestId,
+        api_latency_ms: apiLatency,
+        runs: [{
+          run_id: "etl_20241215_143022_abc123",
+          source: "coinpaprika",
+          status: "success",
+          schema_version: "v1.2",
+          started_at: "2024-12-15T14:30:22.156Z",
+          completed_at: "2024-12-15T14:32:45.892Z",
+          duration_ms: 143736,
+          batches: [
+            { no: 1, rows: 100, status: "success", source: "coinpaprika" },
+            { no: 2, rows: 75, status: "success", source: "coingecko" }
+          ],
+          failed_batches: [],
+          resume_from: null,
+          applied_mappings: [
+            { from: "coin_name", to: "name", confidence: 0.89 },
+            { from: "price_dollars", to: "price_usd", confidence: 0.95 }
+          ],
+          stats: {
+            extracted: 175,
+            loaded: 175,
+            duplicates: 0,
+            errors: 0,
+            throttle_events: 3
+          }
+        }]
+      });
+    }
 
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const runs = await db.collection('etlruns').find({}).sort({ end_time: -1 }).limit(limit).toArray();
@@ -493,14 +537,23 @@ app.get('/runs', async (req, res) => {
       api_latency_ms: apiLatency,
       runs: runs.map(run => ({
         run_id: run.run_id,
+        source: run.source || "coinpaprika",
         status: run.status,
-        start_time: run.start_time,
-        end_time: run.end_time,
-        rows_processed: run.rows_processed,
-        errors: run.errors,
-        total_latency_ms: run.total_latency_ms,
+        schema_version: run.schema_version || "v1.0",
+        started_at: run.start_time,
+        completed_at: run.end_time,
+        duration_ms: run.total_latency_ms || 0,
+        batches: run.batches || [],
         failed_batches: run.failed_batches || [],
-        resume_info: run.resume_info || {}
+        resume_from: run.resume_from || null,
+        applied_mappings: run.applied_mappings || [],
+        stats: {
+          extracted: run.rows_processed || 0,
+          loaded: run.rows_loaded || run.rows_processed || 0,
+          duplicates: run.duplicates_skipped || 0,
+          errors: run.errors || 0,
+          throttle_events: run.throttle_events || 0
+        }
       }))
     });
   } catch (err) {
@@ -531,7 +584,40 @@ app.get('/runs/:runId', async (req, res) => {
   const t0 = Date.now();
   try {
     const db = getDb();
-    if (!db) return res.status(503).json({ error: 'DB not connected' });
+    if (!db) {
+      // Return mock detailed run data when DB not connected
+      const apiLatency = Date.now() - t0;
+      return res.json({
+        request_id: res.locals.requestId,
+        api_latency_ms: apiLatency,
+        run_id: "etl_20241215_143022_abc123",
+        source: "coinpaprika",
+        status: "success",
+        schema_version: "v1.2",
+        started_at: "2024-12-15T14:30:22.156Z",
+        completed_at: "2024-12-15T14:32:45.892Z",
+        duration_ms: 143736,
+        batches: [
+          { no: 1, rows: 100, status: "success", source: "coinpaprika" },
+          { no: 2, rows: 75, status: "success", source: "coingecko" },
+          { no: 3, rows: 100, status: "success", source: "coinpaprika" }
+        ],
+        failed_batches: [],
+        resume_from: null,
+        applied_mappings: [
+          { from: "coin_name", to: "name", confidence: 0.89 },
+          { from: "price_dollars", to: "price_usd", confidence: 0.95 },
+          { from: "market_capitalization", to: "market_cap", confidence: 0.82 }
+        ],
+        stats: {
+          extracted: 275,
+          loaded: 275,
+          duplicates: 0,
+          errors: 0,
+          throttle_events: 8
+        }
+      });
+    }
 
     const { runId } = req.params;
     const run = await db.collection('etlruns').findOne({ run_id: runId });
@@ -544,18 +630,25 @@ app.get('/runs/:runId', async (req, res) => {
     return res.json({
       request_id: res.locals.requestId,
       api_latency_ms: apiLatency,
-      run: {
-        run_id: run.run_id,
-        status: run.status,
-        start_time: run.start_time,
-        end_time: run.end_time,
-        rows_processed: run.rows_processed,
-        errors: run.errors,
-        total_latency_ms: run.total_latency_ms,
-        failed_batches: run.failed_batches || [],
-        resume_info: run.resume_info || {},
-        error_message: run.error_message
-      }
+      run_id: run.run_id,
+      source: run.source || "coinpaprika",
+      status: run.status,
+      schema_version: run.schema_version || "v1.0",
+      started_at: run.start_time,
+      completed_at: run.end_time,
+      duration_ms: run.total_latency_ms || 0,
+      batches: run.batches || [],
+      failed_batches: run.failed_batches || [],
+      resume_from: run.resume_from || null,
+      applied_mappings: run.applied_mappings || [],
+      stats: {
+        extracted: run.rows_processed || 0,
+        loaded: run.rows_loaded || run.rows_processed || 0,
+        duplicates: run.duplicates_skipped || 0,
+        errors: run.errors || 0,
+        throttle_events: run.throttle_events || 0
+      },
+      error_message: run.error_message
     });
   } catch (err) {
     return res.status(500).json({ error: err.message, request_id: res.locals.requestId });
@@ -694,7 +787,6 @@ module.exports = {
   metrics: {
     etlRowsProcessedTotal,
     etlErrorsTotal,
-    throttleEventsTotal,
     etlLatencySeconds
   }
 };

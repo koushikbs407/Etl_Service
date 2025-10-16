@@ -10,6 +10,7 @@
     "lint": "eslint . --ext .js --fix",
     "typecheck": "echo 'TypeScript check passed (JS project)'",
     "smoke-test": "node smoke-test.js",
+    "ci-smoke-test": "timeout 120 node smoke-test.js",
     "test:api": "node test-api-surface.js",
     "test:incremental": "node test-incremental.js"
   },
@@ -19,18 +20,23 @@
     "mongoose": "^7.5.0",
     "prom-client": "^14.2.0",
     "swagger-ui-express": "^5.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-jsdoc": "^6.2.8",
     "joi": "^17.9.2",
     "jsonwebtoken": "^9.0.2",
     "axios": "^1.5.0",
     "csv-parser": "^3.0.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "fast-levenshtein": "^3.0.0",
+    "moment": "^2.29.4",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.7"
   },
   "devDependencies": {
     "jest": "^29.6.2",
     "eslint": "^8.47.0",
     "nodemon": "^3.0.1",
-    "supertest": "^6.3.3",
-    "@eslint/js": "^8.47.0"
+    "supertest": "^6.3.3"
   },
   "engines": {
     "node": ">=16.0.0"

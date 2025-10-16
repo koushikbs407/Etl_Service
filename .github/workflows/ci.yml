@@ -12,11 +12,11 @@ jobs:
     
     services:
       mongodb:
-        image: mongo:6
+        image: mongo:5.0
         ports:
           - 27017:27017
         options: >-
-          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-cmd "mongosh --eval 'db.runCommand({ping: 1})'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -33,17 +33,81 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
-    - name: Lint (ignore failures)
-      run: npm run lint || true
+    - name: Run linting
+      run: npm run lint
     
-    - name: Type check
-      run: npm run typecheck
-    
-    - name: Unit tests
+    - name: Run unit tests
       run: npm test
     
-    - name: Smoke test
-      run: npm run smoke-test
+    - name: Seed test dataset
+      run: |
+        echo "symbol,name,price_usd,volume_24h,market_cap,percent_change_24h,timestamp,source" > Service/Historical_Data.csv
+        echo "BTC,Bitcoin,45000,1000000000,850000000000,2.5,2024-01-01T00:00:00Z,test" >> Service/Historical_Data.csv
+        echo "ETH,Ethereum,3000,500000000,360000000000,1.8,2024-01-01T00:00:00Z,test" >> Service/Historical_Data.csv
+        echo "ADA,Cardano,0.5,200000000,15000000000,-0.8,2024-01-01T00:00:00Z,test" >> Service/Historical_Data.csv
+    
+    - name: Start ETL services
+      run: |
+        cp .env.example .env
+        docker-compose up -d --build
+        sleep 30  # Wait for services to be ready
       env:
-        MONGODB_URI: mongodb://localhost:27017/etl_test_db
-        PORT: 3000
+        MONGODB_URI: mongodb://localhost:27017/crypto_etl_test
+    
+    - name: Wait for API readiness
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:8080/health; do sleep 2; done'
+    
+    - name: Run smoke test
+      run: |
+        # Trigger ETL refresh
+        echo "Triggering ETL refresh..."
+        REFRESH_RESPONSE=$(curl -s -X POST -H "Authorization: Bearer demo-token-123" http://localhost:8080/refresh)
+        echo "Refresh response: $REFRESH_RESPONSE"
+        
+        # Wait for ETL to complete
+        sleep 10
+        
+        # Check metrics contain etl_rows_processed_total > 0
+        echo "Checking metrics..."
+        METRICS=$(curl -s http://localhost:8080/metrics)
+        echo "$METRICS" | grep -E "etl_rows_processed_total"
+        
+        if ! echo "$METRICS" | grep -q "etl_rows_processed_total.*[1-9]"; then
+          echo "❌ FAIL: etl_rows_processed_total is 0 or missing"
+          exit 1
+        fi
+        echo "✅ PASS: etl_rows_processed_total > 0"
+        
+        # Check /runs list is non-empty
+        echo "Checking runs..."
+        RUNS=$(curl -s http://localhost:8080/runs)
+        echo "Runs response: $RUNS"
+        
+        if ! echo "$RUNS" | jq -e '.runs | length > 0' > /dev/null; then
+          echo "❌ FAIL: /runs list is empty"
+          exit 1
+        fi
+        echo "✅ PASS: /runs list is non-empty"
+        
+        # Additional validation: check run status
+        RUN_STATUS=$(echo "$RUNS" | jq -r '.runs[0].status')
+        if [[ "$RUN_STATUS" != "success" && "$RUN_STATUS" != "partial_success" ]]; then
+          echo "❌ FAIL: Latest run status is $RUN_STATUS"
+          exit 1
+        fi
+        echo "✅ PASS: Latest run status is $RUN_STATUS"
+        
+        echo "🎉 All smoke tests passed!"
+    
+    - name: Show logs on failure
+      if: failure()
+      run: |
+        echo "=== API Logs ==="
+        docker-compose logs api
+        echo "=== MongoDB Logs ==="
+        docker-compose logs mongo
+    
+    - name: Cleanup
+      if: always()
+      run: docker-compose down -v

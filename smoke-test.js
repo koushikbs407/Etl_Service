@@ -90,19 +90,27 @@ async function smokeTest() {
       throw new Error('Metrics endpoint returned empty or insufficient data');
     }
     
-    // Check for required metrics
-    const requiredMetrics = [
-      'etl_rows_processed_total',
-      'etl_latency_seconds',
-      'throttle_events_total'
-    ];
+    // Check for etl_rows_processed_total > 0
+    const rowsProcessedMatch = metricsData.match(/etl_rows_processed_total\{[^}]*\}\s+(\d+)/);
+    if (!rowsProcessedMatch) {
+      throw new Error('etl_rows_processed_total metric not found in /metrics');
+    }
     
+    const rowsProcessed = parseInt(rowsProcessedMatch[1]);
+    if (rowsProcessed <= 0) {
+      throw new Error(`etl_rows_processed_total is ${rowsProcessed}, expected > 0`);
+    }
+    
+    console.log(`✅ etl_rows_processed_total = ${rowsProcessed} (> 0)`);
+    
+    // Check for other required metrics
+    const requiredMetrics = ['etl_latency_seconds', 'throttle_events_total'];
     for (const metric of requiredMetrics) {
       if (!metricsData.includes(metric)) {
         throw new Error(`Required metric '${metric}' not found in /metrics`);
       }
     }
-    console.log('✅ Metrics endpoint contains required metrics');
+    console.log('✅ All required metrics present');
 
     // Step 4: Assert /runs not empty
     console.log('\n4. Checking /runs endpoint...');
@@ -113,11 +121,22 @@ async function smokeTest() {
     }
     
     if (!runsResponse.data.runs || runsResponse.data.runs.length === 0) {
-      throw new Error('Runs endpoint returned empty data');
+      throw new Error('/runs list is empty - no ETL runs found');
     }
     
-    console.log('✅ Runs endpoint contains ETL run data');
+    const latestRun = runsResponse.data.runs[0];
+    if (!latestRun.run_id) {
+      throw new Error('Latest run missing run_id');
+    }
+    
+    console.log('✅ /runs list is non-empty');
     console.log(`   Found ${runsResponse.data.runs.length} ETL runs`);
+    console.log(`   Latest run: ${latestRun.run_id} (${latestRun.status})`);
+    
+    // Validate run has processed some data
+    if (latestRun.stats && latestRun.stats.extracted === 0) {
+      throw new Error('Latest run processed 0 records');
+    }
 
     // Cleanup
     try {

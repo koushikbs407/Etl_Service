@@ -1,0 +1,187 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Kasparro ETL System Dashboard",
+    "tags": ["etl", "crypto", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "ETL Rows Processed",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(etl_rows_processed_total)",
+            "legendFormat": "Total Rows"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 100},
+                {"color": "green", "value": 1000}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "ETL Processing Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(etl_rows_processed_total[5m])",
+            "legendFormat": "{{source}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Rows/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Error Count",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(etl_errors_total)",
+            "legendFormat": "Total Errors"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 10}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "ETL Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, etl_latency_seconds_bucket)",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, etl_latency_seconds_bucket)",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Seconds",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Rate Limiting Events",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(throttle_events_total[5m])",
+            "legendFormat": "{{source}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Events/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Token Bucket Status",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "tokens_remaining",
+            "legendFormat": "{{source}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Tokens",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "Outliers Detected",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(outlier_detected_total)",
+            "legendFormat": "Total Outliers"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 20}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "API Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, api_http_request_duration_ms_bucket)",
+            "legendFormat": "95th percentile"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Milliseconds",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}
