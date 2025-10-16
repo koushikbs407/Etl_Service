@@ -10,14 +10,21 @@ try {
 }
 
 async function logETLRun({
+  run_id,
   startTime,
   status,
   rowsProcessed,
   errors,
   skippedFields,
-  totalLatency
+  totalLatency,
+  applied_mappings,
+  schema_warnings,
+  schema_version,
+  failed_batches,
+  resume_info,
+  error_message
 }) {
-  const runId = uuidv4();
+  const runId = run_id || uuidv4();
   const endTime = new Date();
 
   const record = {
@@ -29,6 +36,12 @@ async function logETLRun({
     errors,
     skipped_fields: skippedFields || [],
     total_latency_ms: totalLatency,
+    applied_mappings: applied_mappings || [],
+    schema_warnings: schema_warnings || [],
+    schema_version: schema_version || 1,
+    failed_batches: failed_batches || [],
+    resume_info: resume_info || {},
+    error_message: error_message || null
   };
 
   const mongoDb = getDb();

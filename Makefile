@@ -1,29 +1,35 @@
-.PHONY: up down refresh test eval
+.PHONY: up down logs test smoke-test fail seed-drift clean
 
-# Start all services
+# Quick start commands
 up:
-	docker-compose up -d
+	docker-compose up --build -d
 
-# Stop all services
 down:
 	docker-compose down
 
-# Trigger ETL refresh
-refresh:
-	@echo "Triggering ETL refresh..."
-	@curl -X POST http://localhost:3000/refresh \
-		-H "Authorization: Bearer $(shell node -e "console.log(require('jsonwebtoken').sign({}, process.env.REFRESH_JWT_SECRET || 'dev-secret'))")"
+logs:
+	docker-compose logs -f api
 
-# Run tests
+# Testing commands
 test:
-	docker-compose exec api npm test
+	npm test
 
-# Show service status and latest ETL metrics
-eval:
-	@echo "\nService Status:"
-	@curl -s http://localhost:3000/health | jq
-	@echo "\nLatest ETL Stats:"
-	@curl -s http://localhost:3000/stats | jq
+smoke-test:
+	npm run smoke-test
 
-# Default target
-all: up
+# Fault injection for testing resume functionality
+fail:
+	docker-compose exec api pkill -f "node api/server.js" || true
+	docker-compose restart api
+
+# Schema drift testing
+seed-drift:
+	@echo "Creating schema drift test data..."
+	@echo "symbol,coin_name,price_dollars,vol_24h,market_capitalization,change_24h,ts" > Service/Historical_Data_Drift.csv
+	@echo "BTC,Bitcoin,50000,1000000000,950000000000,2.5,1704067200" >> Service/Historical_Data_Drift.csv
+	@echo "ETH,Ethereum,3000,500000000,360000000000,1.8,1704067200" >> Service/Historical_Data_Drift.csv
+
+# Cleanup
+clean:
+	docker-compose down -v
+	docker system prune -f

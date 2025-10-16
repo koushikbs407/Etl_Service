@@ -16,7 +16,7 @@ services:
   api:
     build: .
     ports:
-      - "3000:3000"
+      - "8080:3000"
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/etl_db
       - PORT=3000
