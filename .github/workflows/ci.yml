@@ -59,18 +59,15 @@ jobs:
             const fs = require('fs');
             try {
               const report = JSON.parse(fs.readFileSync('rate-limiting-test-report.json', 'utf8'));
-              const comment = `## 🧪 Rate Limiting Test Results
-
-**Summary:**
-- Total Tests: ${report.summary.total}
-- Passed: ${report.summary.passed} ✅
-- Failed: ${report.summary.failed} ❌
-- Success Rate: ${report.summary.success_rate}
-
-**Test Details:**
-${report.tests.map(test => `${test.passed ? '✅' : '❌'} ${test.name}${test.details ? ': ' + test.details : ''}`).join('\n')}
-
-*Generated at: ${report.timestamp}*`;
+              const comment = `## 🧪 Rate Limiting Test Results\n\n` +
+                `**Summary:**\n` +
+                `- Total Tests: ${report.summary.total}\n` +
+                `- Passed: ${report.summary.passed} ✅\n` +
+                `- Failed: ${report.summary.failed} ❌\n` +
+                `- Success Rate: ${report.summary.success_rate}\n\n` +
+                `**Test Details:**\n` +
+                `${report.tests.map(test => `${test.passed ? '✅' : '❌'} ${test.name}${test.details ? ': ' + test.details : ''}`).join('\n')}\n\n` +
+                `*Generated at: ${report.timestamp}*`;
               
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
