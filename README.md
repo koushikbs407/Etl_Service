@@ -1,6 +1,6 @@
 # Kasparro ETL System
 
-![CI Status](https://github.com/koushikbs407/Etl_Service/workflows/CI%20Pipeline/badge.svg)
+
 
 A resilient Market Data ETL and API service built with Node.js, Express, and MongoDB, fully containerized with Docker. This project demonstrates **adaptive rate limiting**, **transactional resume**, **automated schema drift mapping**, **Prometheus metrics**, and **incremental loads**.
 
@@ -124,17 +124,18 @@ curl -s localhost:8080/runs | jq '.[:5]'
 
 **Accept if**: Every response includes `request_id`, `run_id` (where applicable), and `api_latency_ms`.
 
-### 7) CI / Smoke Test
+### 7) Local Smoke Test
 **Goal**: Ensure repo ships with guardrails.
 
 ```bash
-# On PR: CI runs lint, typecheck, tests, and a smoke integration that:
+# Run local smoke test that:
 # 1) seeds tiny CSV
 # 2) POST /refresh
 # 3) asserts /metrics and /runs not empty
+npm run smoke-test
 ```
 
-**Accept if**: CI badge green; smoke test proves end-to-end flow.
+**Accept if**: Smoke test passes; proves end-to-end flow locally.
 
 ## 🎯 Proving Advanced Requirements
 
@@ -261,9 +262,9 @@ watch -n 2 'curl -s localhost:8080/metrics | grep -E "etl_rows_processed_total|e
 # throttle_events_total{source="coingecko"} 7
 ```
 
-## 🧪 CI/CD & Testing
+## 🧪 Local Testing
 
-### Local Testing
+### Testing Commands
 ```bash
 npm install
 npm run lint          # ESLint code quality
@@ -308,7 +309,7 @@ The system implements advanced ETL patterns:
 - **📈 Prometheus Metrics**: Comprehensive operational monitoring
 - **⬆️ Incremental Loads**: Watermark-based processing to prevent duplicates
 - **🚪 API Surface**: RESTful endpoints with consistent response format
-- **✅ CI/CD Pipeline**: Automated testing with smoke tests
+- **🧪 Local Testing**: Comprehensive test suite with smoke tests
 
 ## 🏆 Advanced Features
 
