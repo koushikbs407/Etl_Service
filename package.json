@@ -9,7 +9,9 @@
     "test": "jest",
     "lint": "eslint . --ext .js --fix",
     "typecheck": "echo 'TypeScript check passed (JS project)'",
-    "smoke-test": "node smoke-test.js"
+    "smoke-test": "node smoke-test.js",
+    "test:api": "node test-api-surface.js",
+    "test:incremental": "node test-incremental.js"
   },
   "dependencies": {
     "express": "^4.18.2",

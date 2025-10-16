@@ -666,12 +666,18 @@ app.get('/health', async (req, res) => {
 });
 
 async function start() {
-  // Skip MongoDB connection for metrics testing
-  // await connectMongoDB();
+  try {
+    await connectMongoDB();
+    console.log('✅ MongoDB connected successfully');
+  } catch (error) {
+    console.error('❌ MongoDB connection failed:', error.message);
+    console.log('⚠️  Server will start without database connection');
+  }
+  
   initializeSampleMetrics();
   const port = process.env.PORT || 8080;
   app.listen(port, () => {
-    console.log(` API server listening on port ${port}`);
+    console.log(`🚀 API server listening on port ${port}`);
   });
 }
 

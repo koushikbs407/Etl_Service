@@ -1,43 +1,35 @@
-.PHONY: up down refresh test eval fail
+.PHONY: up down logs test smoke-test fail seed-drift clean
 
-# Start all services
+# Quick start commands
 up:
-	docker-compose up -d
+	docker-compose up --build -d
 
-# Stop all services
 down:
 	docker-compose down
 
-# Trigger ETL refresh
-refresh:
-	@echo "Triggering ETL refresh..."
-	@curl -X POST http://localhost:3000/refresh \
-		-H "Authorization: Bearer $(shell node -e "console.log(require('jsonwebtoken').sign({}, process.env.REFRESH_JWT_SECRET || 'dev-secret'))")"
+logs:
+	docker-compose logs -f api
 
-# Simulate failure during ETL
-fail:
-	@echo "Inducing ETL failure..."
-	@docker-compose exec -e FAULT_INJECTION=true api node -e "process.exit(1)" || true
-	@echo "Restarting service..."
-	@docker-compose restart api
-
-# Run tests
+# Testing commands
 test:
-	docker-compose exec api npm test
+	npm test
 
-# Show service status and latest ETL metrics
-eval:
-	@echo "\nService Status:"
-	@curl -s http://localhost:3000/health | jq
-	@echo "\nLatest ETL Stats:"
-	@curl -s http://localhost:3000/stats | jq
-	@echo "\nRecent ETL Runs:"
-	@curl -s http://localhost:3000/runs | jq '.runs[:3]'
+smoke-test:
+	npm run smoke-test
 
-# Test schema drift detection
+# Fault injection for testing resume functionality
+fail:
+	docker-compose exec api pkill -f "node api/server.js" || true
+	docker-compose restart api
+
+# Schema drift testing
 seed-drift:
-	@echo "Simulating schema drift..."
-	@node test-schema-drift.js
+	@echo "Creating schema drift test data..."
+	@echo "symbol,coin_name,price_dollars,vol_24h,market_capitalization,change_24h,ts" > Service/Historical_Data_Drift.csv
+	@echo "BTC,Bitcoin,50000,1000000000,950000000000,2.5,1704067200" >> Service/Historical_Data_Drift.csv
+	@echo "ETH,Ethereum,3000,500000000,360000000000,1.8,1704067200" >> Service/Historical_Data_Drift.csv
 
-# Default target
-all: up
+# Cleanup
+clean:
+	docker-compose down -v
+	docker system prune -f
