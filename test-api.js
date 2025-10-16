@@ -10,6 +10,8 @@ app.use(express.json());
 const register = new promClient.Registry();
 promClient.collectDefaultMetrics({ register });
 
+
+
 // Rate limiting metrics
 const throttleEventsTotal = new promClient.Counter({
   name: 'throttle_events_total',
