@@ -13,14 +13,19 @@ const columnAliases = {
   'price_timestamp': 'timestamp'
 };
 
-// Confidence threshold for fuzzy mapping (0-1)
-const CONFIDENCE_THRESHOLD = 0.8;
+// Confidence thresholds for fuzzy mapping policy
+const CONFIDENCE_THRESHOLDS = {
+  AUTO_MAP: 0.8,     // ≥ 0.8 → auto-map
+  QUARANTINE: 0.5,   // 0.5–0.8 → warn + quarantine
+  SKIP: 0.5          // < 0.5 → skip
+};
 
 // Schema drift detector
 class SchemaDriftDetector {
   constructor() {
     this.knownSchemas = new Map();
     this.schemaVersion = 1;
+    this.quarantinedFields = new Map(); // Store quarantined mappings
   }
 
   detectDrift(source, currentData) {
@@ -46,17 +51,33 @@ class SchemaDriftDetector {
       console.log(`🔄 Schema drift detected for ${source}, version: ${this.schemaVersion}`);
       
       const mappings = this.findMappings(previousSchema, currentSchema);
-      result.applied_mappings = mappings.filter(m => m.confidence >= CONFIDENCE_THRESHOLD);
-      result.warnings = mappings.filter(m => m.confidence < CONFIDENCE_THRESHOLD);
       
-      // Log results
+      // Apply confidence threshold policy
+      result.applied_mappings = mappings.filter(m => m.confidence >= CONFIDENCE_THRESHOLDS.AUTO_MAP);
+      const quarantined = mappings.filter(m => m.confidence >= CONFIDENCE_THRESHOLDS.QUARANTINE && m.confidence < CONFIDENCE_THRESHOLDS.AUTO_MAP);
+      const skipped = mappings.filter(m => m.confidence < CONFIDENCE_THRESHOLDS.SKIP);
+      
+      // Store quarantined mappings
+      quarantined.forEach(m => {
+        const key = `${source}:${m.from}`;
+        this.quarantinedFields.set(key, { ...m, quarantined_at: new Date().toISOString() });
+      });
+      
+      // Log results by policy
       result.applied_mappings.forEach(m => {
-        console.log(`🔄 Auto-mapped: ${m.from} -> ${m.to} (confidence: ${m.confidence})`);
+        console.log(`✅ Auto-mapped: ${m.from} → ${m.to} (confidence: ${m.confidence})`);
       });
       
-      result.warnings.forEach(w => {
-        console.log(`⚠️ Low confidence mapping skipped: ${w.from} -> ${w.to} (confidence: ${w.confidence})`);
+      quarantined.forEach(m => {
+        console.log(`⚠️ QUARANTINED: ${m.from} → ${m.to} (confidence: ${m.confidence}) - requires manual review`);
       });
+      
+      skipped.forEach(m => {
+        console.log(`❌ SKIPPED: ${m.from} → ${m.to} (confidence: ${m.confidence}) - too low confidence`);
+      });
+      
+      result.quarantined_mappings = quarantined;
+      result.skipped_mappings = skipped;
       
       this.knownSchemas.set(source, currentSchema);
     }
@@ -189,13 +210,13 @@ const mapCsvRowToUnifiedSchema = (row) => {
       }
     }
 
-    if (bestScore >= CONFIDENCE_THRESHOLD) {
+    if (bestScore >= CONFIDENCE_THRESHOLDS.AUTO_MAP) {
       mapped[bestMatch] = convertValueType(bestMatch, value);
       rawMappingLog.push({ csvCol, mappedTo: bestMatch, confidence: bestScore.toFixed(2) });
-    } else if (bestScore >= 0.5) {
-      console.warn(`⚠️ Column "${csvCol}" mapping below threshold (candidate: "${bestMatch}", score: ${bestScore.toFixed(2)}) — skipped.`);
+    } else if (bestScore >= CONFIDENCE_THRESHOLDS.QUARANTINE) {
+      console.warn(`⚠️ QUARANTINED: Column "${csvCol}" → "${bestMatch}" (confidence: ${bestScore.toFixed(2)}) - requires manual review`);
     } else {
-      console.warn(`⚠️ Column "${csvCol}" could not be mapped confidently (score: ${bestScore.toFixed(2)}), skipping.`);
+      console.warn(`❌ SKIPPED: Column "${csvCol}" (confidence: ${bestScore.toFixed(2)}) - too low confidence`);
     }
   }
 

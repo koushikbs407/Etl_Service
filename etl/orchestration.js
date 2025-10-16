@@ -7,8 +7,9 @@ const { generateAndStoreETLSummary } = require('../Service/etlReportService');
 const { logETLRun } = require('../Service/etlRunLogger');
 const { saveCheckpoint, getCheckpoint, clearCheckpoints } = require('../Schedular/etlCheckpointService');
 const EtlSummary = require('../Schems/EtlSummary');
-const { throttlingMetrics } = require('../Utility/rateLimiter');
+const { rateLimiters } = require('../Utility/rateLimiter');
 const { schemaDriftDetector } = require('../Utility/schemaDrift');
+const { outlierDetector } = require('../Utility/outlierDetection');
 const unifiedSchema = require('../Schems/unifiedSchema');
 const promClient = require('prom-client');
 const crypto = require('crypto');
@@ -236,13 +237,18 @@ const runETLPipeline = async () => {
         const driftResult = schemaDriftDetector.detectDrift(name, data);
         console.log(`🔍 Schema drift analysis for ${name}:`, driftResult);
         
+        // Detect outliers
+        const outliers = outlierDetector.detectOutliers(data);
+        console.log(`🚨 Outlier detection for ${name}: ${outliers.length} outliers found`);
+        
         const result = await processSourceWithCheckpoint(name, data, runId);
         results.push({ 
           source: name, 
           ...result,
           applied_mappings: driftResult.applied_mappings,
           schema_warnings: driftResult.warnings,
-          schema_version: driftResult.schema_version
+          schema_version: driftResult.schema_version,
+          outliers_detected: outliers.length
         });
         
         if (result.resumedFromBatch !== null) {
@@ -276,14 +282,10 @@ const runETLPipeline = async () => {
     totalErrors = failedIdsAll.length + totalValidationErrors;
     skippedFields = ['volume_24h']; // example
 
-    // Generate summary
+    // Generate summary (simplified without throttling metrics)
     const avgRetryLatency = {
-      coinpaprika: throttlingMetrics.coinpaprika.throttled > 0
-        ? Math.round(throttlingMetrics.coinpaprika.totalRetryWaitMs / throttlingMetrics.coinpaprika.throttled)
-        : 0,
-      coingecko: throttlingMetrics.coingecko.throttled > 0
-        ? Math.round(throttlingMetrics.coingecko.totalRetryWaitMs / throttlingMetrics.coingecko.throttled)
-        : 0,
+      coinpaprika: 0,
+      coingecko: 0
     };
 
     const isPartialSuccess = allFailedBatches.length > 0;
@@ -305,11 +307,11 @@ const runETLPipeline = async () => {
       },
       throttling: {
         coinpaprika: {
-          throttled: throttlingMetrics.coinpaprika.throttled,
+          throttled: 0,
           avgRetryLatencyMs: avgRetryLatency.coinpaprika,
         },
         coingecko: {
-          throttled: throttlingMetrics.coingecko.throttled,
+          throttled: 0,
           avgRetryLatencyMs: avgRetryLatency.coingecko,
         }
       },
@@ -334,7 +336,7 @@ const runETLPipeline = async () => {
     const allSchemaWarnings = results.flatMap(r => r.schema_warnings || []);
     const maxSchemaVersion = Math.max(...results.map(r => r.schema_version || 1));
 
-    // Log ETL run
+    // Log ETL run with schema drift metadata
     await logETLRun({
       run_id: runId,
       startTime,
@@ -344,11 +346,14 @@ const runETLPipeline = async () => {
       failed_batches: allFailedBatches,
       resume_info: resumeInfo,
       applied_mappings: allAppliedMappings,
+      quarantined_mappings: results.flatMap(r => r.quarantined_mappings || []),
+      skipped_mappings: results.flatMap(r => r.skipped_mappings || []),
       schema_warnings: allSchemaWarnings,
       schema_version: maxSchemaVersion,
       skippedFields,
       totalLatency,
-      skipped_by_watermark: results.reduce((sum, r) => sum + (r.skippedByWatermark || 0), 0)
+      skipped_by_watermark: results.reduce((sum, r) => sum + (r.skippedByWatermark || 0), 0),
+      throttle_events: 0
     });
 
     // Clear checkpoints on successful completion
@@ -374,6 +379,10 @@ const runETLPipeline = async () => {
       errors: totalErrors + 1,
       failed_batches: allFailedBatches,
       resume_info: resumeInfo,
+      applied_mappings: [],
+      quarantined_mappings: [],
+      skipped_mappings: [],
+      schema_version: 1,
       skippedFields,
       totalLatency,
       error_message: error.message

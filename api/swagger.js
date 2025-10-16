@@ -14,7 +14,7 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:3000',
+        url: 'http://localhost:8080',
         description: 'Development server',
       },
     ],
@@ -28,7 +28,7 @@ const options = {
       }
     }
   },
-  apis: ['./api/server.js'], // Path to the API docs
+  apis: ['./server.js'], // Path to the API docs
 };
 
 module.exports = swaggerJsdoc(options);
